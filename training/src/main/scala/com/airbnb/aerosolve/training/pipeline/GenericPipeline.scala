@@ -156,6 +156,7 @@ object GenericPipeline {
     val isRegression = Try(cfg.getBoolean("is_regression")).getOrElse(false)
     val isMulticlass = Try(cfg.getBoolean("is_multiclass")).getOrElse(false)
     val metric = cfg.getString("metric_to_maximize")
+    val resultsOutputPath = Try(cfg.getString("results_output_path"))..getOrElse("")
     val (model, transformer) = getModelAndTransform(config, modelCfgName, modelName)
 
     val metrics = evalModelInternal(
@@ -169,7 +170,8 @@ object GenericPipeline {
       isRegression,
       isMulticlass,
       metric,
-      isTraining
+      isTraining,
+      resultsOutputPath
     )
 
     metrics
@@ -447,7 +449,8 @@ object GenericPipeline {
       isRegression: Boolean,
       isMulticlass: Boolean,
       metric: String,
-      isTraining: Example => Boolean) : Array[(String, Double)] = {
+      isTraining: Example,
+      resultsOutputPath: String => Boolean) : Array[(String, Double)] = {
     val examples = sc.textFile(inputPattern)
       .map(Util.decodeExample)
       .sample(false, subSample)
@@ -470,7 +473,11 @@ object GenericPipeline {
     } else if (isMulticlass) {
       Evaluation.evaluateMulticlassClassification(records)
     } else {
-      Evaluation.evaluateBinaryClassification(records, bins, metric)
+      if (resultsOutputPath == "") {
+        Evaluation.evaluateBinaryClassification(records, bins, metric)
+      } else {
+        Evaluation.evaluateBinaryClassification(records, bins, metric, resultsOutputPath)
+      }
     }
 
     records.unpersist()
